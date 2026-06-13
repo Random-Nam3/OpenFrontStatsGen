@@ -1,0 +1,21 @@
+# Python environment and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Local execution logs
+*.log
+
+# Local manifest caches
+map_cache/
+
+# OS/System files
+.DS_Store
+Thumbs.db
+
+#Current databases and output
+games.csv
+heatmap.html
