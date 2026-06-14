@@ -993,12 +993,19 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             const tempCtx = tempCanvas.getContext('2d');
 
             const radius = Math.max(30, Math.round(data.width * 0.025));
-            const intensity = 0.55;
+            
+            // Enable additive blending
+            tempCtx.globalCompositeOperation = 'lighter';
+            
+            // Scale point intensity dynamically based on count (min 0.005 to avoid rounding to 0)
+            const count = data.points ? data.points.length : 1;
+            const intensity = Math.max(0.005, Math.min(0.5, 1.5 / Math.sqrt(count)));
 
             data.points.forEach(pt => {
                 const grad = tempCtx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius);
-                grad.addColorStop(0, `rgba(0,0,0,${intensity})`);
-                grad.addColorStop(1, 'rgba(0,0,0,0)');
+                // Accumulate white color/alpha values
+                grad.addColorStop(0, `rgba(255,255,255,${intensity})`);
+                grad.addColorStop(1, 'rgba(255,255,255,0)');
                 tempCtx.fillStyle = grad;
                 tempCtx.beginPath();
                 tempCtx.arc(pt.x, pt.y, radius, 0, Math.PI * 2);
@@ -1007,15 +1014,31 @@ def generate_html_dashboard(map_data: dict, output_path: str):
 
             const imgData = tempCtx.getImageData(0, 0, data.width, data.height);
             const pixels = imgData.data;
+            
+            // Find the peak alpha/density value in the generated canvas
+            let maxAlpha = 0;
+            for (let i = 3; i < pixels.length; i += 4) {
+                if (pixels[i] > maxAlpha) {
+                    maxAlpha = pixels[i];
+                }
+            }
+
             const palette = getGradientPalette();
 
-            for (let i = 0; i < pixels.length; i += 4) {
-                const alpha = pixels[i + 3];
-                if (alpha > 0) {
-                    const colorIndex = alpha * 4;
-                    pixels[i] = palette[colorIndex];
-                    pixels[i + 1] = palette[colorIndex + 1];
-                    pixels[i + 2] = palette[colorIndex + 2];
+            // Normalize and color map relative to peak density
+            if (maxAlpha > 0) {
+                for (let i = 0; i < pixels.length; i += 4) {
+                    const alpha = pixels[i + 3];
+                    if (alpha > 0) {
+                        const normalizedAlpha = alpha / maxAlpha;
+                        const colorIndex = Math.floor(normalizedAlpha * 255) * 4;
+                        
+                        pixels[i] = palette[colorIndex];
+                        pixels[i + 1] = palette[colorIndex + 1];
+                        pixels[i + 2] = palette[colorIndex + 2];
+                        // Fade low density to transparency, keep peak density opaque
+                        pixels[i + 3] = Math.floor(normalizedAlpha * 200); 
+                    }
                 }
             }
             ctx.putImageData(imgData, 0, 0);
