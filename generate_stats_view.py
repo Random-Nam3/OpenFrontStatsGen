@@ -1001,9 +1001,6 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             <!-- Single View Layout -->
             <div id="unitStatsSingleLayout">
                 <div id="unitStatsSummary"></div>
-                <div class="stats-grid" id="unitStatsGrid">
-                    <!-- Populated dynamically -->
-                </div>
             </div>
             
             <!-- Comparison View Layout -->
@@ -1011,12 +1008,10 @@ def generate_html_dashboard(map_data: dict, output_path: str):
                 <div class="comparison-column">
                     <h2 class="comparison-map-heading" id="unitStatsLabelA">Map A</h2>
                     <div id="unitStatsSummaryA"></div>
-                    <div class="stats-grid" id="unitStatsGridA"></div>
                 </div>
                 <div class="comparison-column">
                     <h2 class="comparison-map-heading" id="unitStatsLabelB">Map B</h2>
                     <div id="unitStatsSummaryB"></div>
-                    <div class="stats-grid" id="unitStatsGridB"></div>
                 </div>
             </div>
         </div>
@@ -1224,13 +1219,13 @@ def generate_html_dashboard(map_data: dict, output_path: str):
                     document.getElementById('unitStatsLabelA').textContent = data.name;
                     document.getElementById('unitStatsLabelB').textContent = mapData[compareSlug].name;
                     
-                    loadUnitStatsView(data, 'unitStatsGridA', 'unitStatsSummaryA');
-                    loadUnitStatsView(mapData[compareSlug], 'unitStatsGridB', 'unitStatsSummaryB');
+                    loadUnitStatsView(data, 'unitStatsSummaryA');
+                    loadUnitStatsView(mapData[compareSlug], 'unitStatsSummaryB');
                 } else {
                     document.getElementById('unitStatsSingleLayout').style.display = 'block';
                     document.getElementById('unitStatsComparisonLayout').style.display = 'none';
                     
-                    loadUnitStatsView(data, 'unitStatsGrid', 'unitStatsSummary');
+                    loadUnitStatsView(data, 'unitStatsSummary');
                 }
             }
         }
@@ -1734,29 +1729,15 @@ def generate_html_dashboard(map_data: dict, output_path: str):
         }
 
         // ==================== UNIT STATISTICS VIEW ====================
-        function loadUnitStatsView(data, gridId = 'unitStatsGrid', summaryDivId = 'unitStatsSummary') {
-            const grid = document.getElementById(gridId);
+        function loadUnitStatsView(data, summaryDivId = 'unitStatsSummary') {
             const summaryDiv = document.getElementById(summaryDivId);
-            grid.innerHTML = '';
             if (summaryDiv) summaryDiv.innerHTML = '';
             
             const stats = data.stats;
             if (!stats || !stats.games_count) {
-                grid.innerHTML = '<div style="padding: 20px; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No unit statistics available. Run build stats collector.</div>';
-                return;
-            }
-            
-            // Get list of all distinct unit types present in any of the categories
-            const allUnits = new Set([
-                ...Object.keys(stats.avg_built),
-                ...Object.keys(stats.avg_lost),
-                ...Object.keys(stats.avg_destroyed),
-                ...Object.keys(stats.avg_captured),
-                ...Object.keys(stats.avg_upgraded)
-            ]);
-            
-            if (allUnits.size === 0) {
-                grid.innerHTML = '<div style="padding: 20px; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No buildings or units recorded for the winner.</div>';
+                if (summaryDiv) {
+                    summaryDiv.innerHTML = '<div style="padding: 20px; color: var(--text-secondary); text-align: center;">No unit statistics available. Run build stats collector.</div>';
+                }
                 return;
             }
             
@@ -1831,72 +1812,6 @@ def generate_html_dashboard(map_data: dict, output_path: str):
                     });
                 }, 50);
             }
-            
-            // Find peak values to scale charts relative to each other (optional, or scale each card to 100% locally)
-            const findPeak = (unit, key) => stats[key] && stats[key][unit] ? stats[key][unit] : 0;
-            
-            Array.from(allUnits).sort().forEach(unit => {
-                const card = document.createElement('div');
-                card.className = 'unit-card';
-                
-                const title = document.createElement('div');
-                title.className = 'unit-card-title';
-                title.textContent = unit;
-                card.appendChild(title);
-                
-                // We will add Built, Lost, Destroyed, Captured
-                const metrics = [
-                    { label: 'Built', key: 'avg_built', fillClass: 'fill-built' },
-                    { label: 'Lost', key: 'avg_lost', fillClass: 'fill-lost' },
-                    { label: 'Destroyed (Enemy)', key: 'avg_destroyed', fillClass: 'fill-destroyed' },
-                    { label: 'Captured', key: 'avg_captured', fillClass: 'fill-captured' }
-                ];
-                
-                // Compute local max to scale this card's bar chart values
-                let localMax = 1;
-                metrics.forEach(m => {
-                    const val = findPeak(unit, m.key);
-                    if (val > localMax) localMax = val;
-                });
-                
-                metrics.forEach(m => {
-                    const val = findPeak(unit, m.key);
-                    if (val === 0 && m.label !== 'Built') return; // Omit if 0, except for Built
-                    
-                    const row = document.createElement('div');
-                    row.className = 'unit-metric-row';
-                    
-                    const labelDiv = document.createElement('div');
-                    labelDiv.className = 'unit-metric-label';
-                    
-                    let displayVal = val;
-                    if (m.key === 'avg_built' && totalBuiltUnits > 0) {
-                        const pct = ((val / totalBuiltUnits) * 100).toFixed(1);
-                        displayVal = `${val} (${pct}%)`;
-                    }
-                    
-                    labelDiv.innerHTML = `<span>${m.label}</span><span class="unit-metric-val">${displayVal}</span>`;
-                    
-                    const barOuter = document.createElement('div');
-                    barOuter.className = 'metric-bar-outer';
-                    
-                    const barFill = document.createElement('div');
-                    barFill.className = `metric-bar-fill ${m.fillClass}`;
-                    barOuter.appendChild(barFill);
-                    
-                    row.appendChild(labelDiv);
-                    row.appendChild(barOuter);
-                    card.appendChild(row);
-                    
-                    // Trigger fill
-                    const percentage = (val / localMax) * 100;
-                    setTimeout(() => {
-                        barFill.style.width = `${percentage}%`;
-                    }, 50);
-                });
-                
-                grid.appendChild(card);
-            });
         }
 
         // Initialize view
