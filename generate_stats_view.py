@@ -768,6 +768,17 @@ def generate_html_dashboard(map_data: dict, output_path: str):
 
         <!-- Heatmap View Content -->
         <div class="tab-content active" id="content-heatmap">
+            <!-- Heatmap / Cluster Controls -->
+            <div class="controls-bar" style="display: flex; gap: 20px; align-items: center; margin-bottom: 15px; padding: 12px 20px; background: var(--card-bg); border-radius: 12px; border: 1px solid var(--card-border); max-width: 1100px; margin-left: auto; margin-right: auto;">
+                <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em;">Visual Options</div>
+                <label class="control-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); cursor: pointer; user-select: none;">
+                    <input type="checkbox" id="chkFilterNoise" onchange="drawHeatmap(mapData[activeSlug])" style="cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent-color);"> Filter Outliers (DBSCAN)
+                </label>
+                <label class="control-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-secondary); cursor: pointer; user-select: none;">
+                    <input type="checkbox" id="chkShowClusters" onchange="drawHeatmap(mapData[activeSlug])" checked style="cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent-color);"> Highlight Hotspots
+                </label>
+            </div>
+
             <div class="visualization-card">
                 <div class="map-wrapper" id="mapWrapper">
                     <img id="mapBackground" class="map-bg" src="" alt="Map Geography">
@@ -980,6 +991,98 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             }
         }
 
+        function computeConvexHull(points) {
+            if (points.length <= 1) return points.slice();
+
+            // Sort points lexicographically by x, then y
+            const sorted = points.slice().sort((a, b) => a.x !== b.x ? a.x - b.x : a.y - b.y);
+
+            const crossProduct = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+
+            // Build lower hull
+            const lower = [];
+            for (let i = 0; i < sorted.length; i++) {
+                while (lower.length >= 2 && crossProduct(lower[lower.length - 2], lower[lower.length - 1], sorted[i]) <= 0) {
+                    lower.pop();
+                }
+                lower.push(sorted[i]);
+            }
+
+            // Build upper hull
+            const upper = [];
+            for (let i = sorted.length - 1; i >= 0; i--) {
+                while (upper.length >= 2 && crossProduct(upper[upper.length - 2], upper[upper.length - 1], sorted[i]) <= 0) {
+                    upper.pop();
+                }
+                upper.push(sorted[i]);
+            }
+
+            // Remove the last point of each list because it's repeated at the beginning of the other list
+            lower.pop();
+            upper.pop();
+
+            return lower.concat(upper);
+        }
+
+        function runDBSCAN(points, eps, minPts) {
+            const status = new Array(points.length).fill(null); // 'noise' or cluster index
+            
+            function getNeighbors(idx) {
+                const neighbors = [];
+                const p1 = points[idx];
+                for (let i = 0; i < points.length; i++) {
+                    const p2 = points[i];
+                    if (Math.hypot(p1.x - p2.x, p1.y - p2.y) <= eps) {
+                        neighbors.push(i);
+                    }
+                }
+                return neighbors;
+            }
+
+            let clusterIdx = 0;
+            for (let i = 0; i < points.length; i++) {
+                if (status[i] !== null) continue;
+
+                const neighbors = getNeighbors(i);
+                if (neighbors.length < minPts) {
+                    status[i] = 'noise';
+                    continue;
+                }
+
+                status[i] = clusterIdx;
+                const queue = neighbors.filter(n => n !== i);
+
+                for (let j = 0; j < queue.length; j++) {
+                    const curr = queue[j];
+                    if (status[curr] === 'noise') status[curr] = clusterIdx;
+                    if (status[curr] !== null) continue;
+
+                    status[curr] = clusterIdx;
+                    const currNeighbors = getNeighbors(curr);
+                    if (currNeighbors.length >= minPts) {
+                        for (let k = 0; k < currNeighbors.length; k++) {
+                            const n = currNeighbors[k];
+                            if (!queue.includes(n)) queue.push(n);
+                        }
+                    }
+                }
+                clusterIdx++;
+            }
+
+            const clusters = Array.from({ length: clusterIdx }, () => []);
+            const outliers = [];
+            
+            points.forEach((pt, i) => {
+                if (status[i] === 'noise') {
+                    outliers.push(pt);
+                } else {
+                    clusters[status[i]].push(pt);
+                }
+            });
+
+            return { clusters, outliers };
+        }
+
         function drawHeatmap(data) {
             const canvas = document.getElementById('heatmapCanvas');
             canvas.width = data.width;
@@ -994,16 +1097,37 @@ def generate_html_dashboard(map_data: dict, output_path: str):
 
             const radius = Math.max(30, Math.round(data.width * 0.025));
             
-            // Enable additive blending
-            tempCtx.globalCompositeOperation = 'lighter';
-            
-            // Scale point intensity dynamically based on count (min 0.005 to avoid rounding to 0)
-            const count = data.points ? data.points.length : 1;
-            const intensity = Math.max(0.005, Math.min(0.5, 1.5 / Math.sqrt(count)));
+            // Get checkbox states
+            const filterNoise = document.getElementById('chkFilterNoise')?.checked || false;
+            const showClusters = document.getElementById('chkShowClusters')?.checked || false;
 
-            data.points.forEach(pt => {
+            // Run DBSCAN if either option is selected
+            let renderPoints = data.points || [];
+            let clustersInfo = null;
+
+            if (filterNoise || showClusters) {
+                const N = Math.max(1, renderPoints.length);
+                // Determine search radius (eps) dynamically based on map width and sample count
+                // Scales inversely with the sample count using N^-0.2 to prevent merging in dense areas
+                const eps = Math.max(30, Math.round(data.width * 0.09 * Math.pow(N, -0.2)));
+                // minPts dynamically scales (e.g. 2.5% of total points, min 4)
+                const minPts = Math.max(4, Math.round(N * 0.025));
+                
+                clustersInfo = runDBSCAN(renderPoints, eps, minPts);
+                
+                if (filterNoise && clustersInfo) {
+                    // Flatten clean clusters into renderPoints, leaving out outliers
+                    renderPoints = clustersInfo.clusters.flat();
+                }
+            }
+
+            // Draw heatmap onto the temp canvas
+            tempCtx.globalCompositeOperation = 'lighter';
+            const count = renderPoints.length;
+            const intensity = Math.max(0.005, Math.min(0.5, 1.5 / Math.sqrt(Math.max(1, count))));
+
+            renderPoints.forEach(pt => {
                 const grad = tempCtx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radius);
-                // Accumulate white color/alpha values
                 grad.addColorStop(0, `rgba(255,255,255,${intensity})`);
                 grad.addColorStop(1, 'rgba(255,255,255,0)');
                 tempCtx.fillStyle = grad;
@@ -1015,7 +1139,6 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             const imgData = tempCtx.getImageData(0, 0, data.width, data.height);
             const pixels = imgData.data;
             
-            // Find the peak alpha/density value in the generated canvas
             let maxAlpha = 0;
             for (let i = 3; i < pixels.length; i += 4) {
                 if (pixels[i] > maxAlpha) {
@@ -1025,7 +1148,6 @@ def generate_html_dashboard(map_data: dict, output_path: str):
 
             const palette = getGradientPalette();
 
-            // Normalize and color map relative to peak density
             if (maxAlpha > 0) {
                 for (let i = 0; i < pixels.length; i += 4) {
                     const alpha = pixels[i + 3];
@@ -1036,12 +1158,116 @@ def generate_html_dashboard(map_data: dict, output_path: str):
                         pixels[i] = palette[colorIndex];
                         pixels[i + 1] = palette[colorIndex + 1];
                         pixels[i + 2] = palette[colorIndex + 2];
-                        // Fade low density to transparency, keep peak density opaque
                         pixels[i + 3] = Math.floor(normalizedAlpha * 200); 
                     }
                 }
             }
             ctx.putImageData(imgData, 0, 0);
+
+            // Draw cluster hotspot overlays (centroids & standard deviation radius) on top of the heatmap
+            if (showClusters && clustersInfo && clustersInfo.clusters.length > 0) {
+                // Find the size of the largest cluster on the map for relative scaling
+                const maxClusterSize = Math.max(...clustersInfo.clusters.map(c => c.length));
+
+                clustersInfo.clusters.forEach((cluster, index) => {
+                    if (cluster.length === 0) return;
+
+                    // Fade hotspot opacity based on size relative to the largest cluster (min 0.2, max 1.0)
+                    const relRatio = maxClusterSize > 0 ? cluster.length / maxClusterSize : 1;
+                    const opacity = 0.2 + 0.8 * Math.sqrt(relRatio);
+                    ctx.globalAlpha = opacity;
+
+                    // Calculate centroid (mean X, Y)
+                    let sumX = 0, sumY = 0;
+                    cluster.forEach(pt => {
+                        sumX += pt.x;
+                        sumY += pt.y;
+                    });
+                    const cX = sumX / cluster.length;
+                    const cY = sumY / cluster.length;
+
+                    // Compute Convex Hull
+                    const hull = computeConvexHull(cluster);
+
+                    if (hull.length >= 3) {
+                        // Draw the Convex Hull boundary polygon
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                        ctx.lineWidth = 3;
+                        ctx.setLineDash([6, 6]);
+                        ctx.beginPath();
+                        ctx.moveTo(hull[0].x, hull[0].y);
+                        for (let i = 1; i < hull.length; i++) {
+                            ctx.lineTo(hull[i].x, hull[i].y);
+                        }
+                        ctx.closePath();
+                        ctx.stroke();
+                        ctx.setLineDash([]); // Reset line dash
+
+                        // Calculate max distance from centroid to hull points for gradient scale
+                        let maxDist = 50;
+                        hull.forEach(pt => {
+                            const dist = Math.hypot(pt.x - cX, pt.y - cY);
+                            if (dist > maxDist) maxDist = dist;
+                        });
+
+                        // Draw inner soft glow backing restricted to polygon
+                        const glowGrad = ctx.createRadialGradient(cX, cY, 0, cX, cY, maxDist);
+                        glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
+                        glowGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                        ctx.fillStyle = glowGrad;
+                        ctx.beginPath();
+                        ctx.moveTo(hull[0].x, hull[0].y);
+                        for (let i = 1; i < hull.length; i++) {
+                            ctx.lineTo(hull[i].x, hull[i].y);
+                        }
+                        ctx.closePath();
+                        ctx.fill();
+                    } else {
+                        // Fallback: draw standard circle if collinear or too few points
+                        const cRadius = 50;
+                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+                        ctx.lineWidth = 3;
+                        ctx.setLineDash([6, 6]);
+                        ctx.beginPath();
+                        ctx.arc(cX, cY, cRadius, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+
+                        const glowGrad = ctx.createRadialGradient(cX, cY, 0, cX, cY, cRadius);
+                        glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.06)');
+                        glowGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+                        ctx.fillStyle = glowGrad;
+                        ctx.beginPath();
+                        ctx.arc(cX, cY, cRadius, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    // Draw a solid center target point
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(cX, cY, 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Draw text badge: e.g. "Hotspot #1 (N wins)"
+                    ctx.globalAlpha = 1.0; // Temporarily reset to apply explicit rgba colors for shadow compatibility
+                    ctx.font = 'bold 16px sans-serif';
+                    ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                    ctx.shadowColor = `rgba(0, 0, 0, ${0.9 * opacity})`;
+                    ctx.shadowBlur = 4;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    
+                    const totalPoints = data.points ? data.points.length : 1;
+                    const pct = ((cluster.length / totalPoints) * 100).toFixed(1);
+                    const label = `Hotspot #${index + 1} (${pct}%)`;
+                    ctx.fillText(label, cX, cY - 12);
+                    
+                    // Reset shadow and alpha
+                    ctx.shadowColor = 'transparent';
+                    ctx.shadowBlur = 0;
+                    ctx.globalAlpha = 1.0;
+                });
+            }
         }
 
         function getGradientPalette() {
