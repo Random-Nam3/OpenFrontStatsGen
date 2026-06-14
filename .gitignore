@@ -11,6 +11,7 @@ env/
 
 # Local manifest caches
 map_cache/
+game_cache/
 
 # OS/System files
 .DS_Store
@@ -19,3 +20,12 @@ Thumbs.db
 #Current databases and output
 games.csv
 heatmap.html
+dashboard.html
+
+# Auto-counter background service setup
+autocounter/
+
+# Calculated build stats by map
+winner_build_stats_by_map/
+
+
