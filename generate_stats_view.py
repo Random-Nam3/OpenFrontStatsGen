@@ -623,6 +623,183 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             font-weight: 600;
         }
 
+        .stats-summary-card {
+            background: linear-gradient(135deg, rgba(19, 23, 34, 0.95) 0%, rgba(24, 30, 43, 0.95) 100%);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .stats-summary-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .stats-summary-title {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stats-summary-val {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            background: linear-gradient(to right, #60a5fa, #34d399);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .proportion-bar-container {
+            margin-top: 15px;
+            width: 100%;
+        }
+
+        .proportion-bar-outer {
+            height: 24px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .proportion-bar-segment {
+            height: 100%;
+            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .proportion-bar-segment:hover {
+            filter: brightness(1.15);
+            cursor: pointer;
+        }
+
+        .proportion-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .proportion-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .proportion-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+        }
+
+        .proportion-legend-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: capitalize;
+        }
+
+        .proportion-legend-val {
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        /* Comparison Layout CSS */
+        .compare-selector-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 6px 14px;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .compare-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .compare-select {
+            background: #1e293b;
+            color: var(--text-primary);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            transition: border-color 0.2s;
+        }
+
+        .compare-select:focus {
+            border-color: var(--accent-color);
+        }
+
+        .comparison-unit-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            width: 100%;
+        }
+
+        @media (max-width: 900px) {
+            .comparison-unit-stats-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
+        .comparison-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .comparison-map-heading {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            text-align: center;
+            padding: 12px;
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.05));
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            text-transform: capitalize;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-bottom: 5px;
+            font-family: 'Outfit', sans-serif;
+        }
+
         /* Unit Stats View */
         .stats-grid {
             display: grid;
@@ -810,8 +987,37 @@ def generate_html_dashboard(map_data: dict, output_path: str):
 
         <!-- Unit Stats View Content -->
         <div class="tab-content" id="content-unit-stats">
-            <div class="stats-grid" id="unitStatsGrid">
-                <!-- Populated dynamically -->
+            <!-- Unit Stats Controls -->
+            <div class="controls-bar" style="display: flex; gap: 20px; align-items: center; margin-bottom: 20px; padding: 12px 20px; background: var(--card-bg); border-radius: 12px; border: 1px solid var(--card-border); max-width: 1100px; margin-left: auto; margin-right: auto; justify-content: space-between;">
+                <div style="font-weight: 700; font-size: 0.9rem; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.05em;">Unit Stats Options</div>
+                <div class="compare-selector-container">
+                    <span class="compare-label">Compare Against:</span>
+                    <select id="compareMapSelect" class="compare-select" onchange="selectCompareMap(this.value)">
+                        <option value="">(None)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Single View Layout -->
+            <div id="unitStatsSingleLayout">
+                <div id="unitStatsSummary"></div>
+                <div class="stats-grid" id="unitStatsGrid">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+            
+            <!-- Comparison View Layout -->
+            <div class="comparison-unit-stats-grid" id="unitStatsComparisonLayout" style="display: none;">
+                <div class="comparison-column">
+                    <h2 class="comparison-map-heading" id="unitStatsLabelA">Map A</h2>
+                    <div id="unitStatsSummaryA"></div>
+                    <div class="stats-grid" id="unitStatsGridA"></div>
+                </div>
+                <div class="comparison-column">
+                    <h2 class="comparison-map-heading" id="unitStatsLabelB">Map B</h2>
+                    <div id="unitStatsSummaryB"></div>
+                    <div class="stats-grid" id="unitStatsGridB"></div>
+                </div>
             </div>
         </div>
 
@@ -868,6 +1074,23 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             if (slugs.length === 0) return;
             
             activeSlug = slugs[0];
+            
+            // Populate comparison selector select box
+            const compareSelect = document.getElementById('compareMapSelect');
+            if (compareSelect) {
+                compareSelect.innerHTML = '<option value="">(None)</option>';
+                // Sort slugs by map name alphabetically
+                const sortedSlugs = slugs.slice().sort((a, b) => mapData[a].name.localeCompare(mapData[b].name));
+                sortedSlugs.forEach(slug => {
+                    const opt = document.createElement('option');
+                    opt.value = slug;
+                    opt.textContent = mapData[slug].name;
+                    if (slug === activeSlug) {
+                        opt.disabled = true;
+                    }
+                    compareSelect.appendChild(opt);
+                });
+            }
             
             slugs.forEach(slug => {
                 const card = document.createElement('div');
@@ -943,6 +1166,26 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             const card = document.getElementById(`card-${slug}`);
             if (card) card.classList.add('active');
             
+            // Disable active map in the comparison dropdown
+            const compareSelect = document.getElementById('compareMapSelect');
+            if (compareSelect) {
+                for (let i = 0; i < compareSelect.options.length; i++) {
+                    const opt = compareSelect.options[i];
+                    if (opt.value === slug) {
+                        opt.disabled = true;
+                        if (compareSelect.value === slug) {
+                            compareSelect.value = ""; // Reset comparison selection if it was the new active map
+                        }
+                    } else {
+                        opt.disabled = false;
+                    }
+                }
+            }
+            
+            renderActiveView();
+        }
+
+        function selectCompareMap(slug) {
             renderActiveView();
         }
 
@@ -967,12 +1210,28 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             
             document.getElementById('gridDimVal').textContent = `${data.width} × ${data.height}`;
 
+            const compareSlug = document.getElementById('compareMapSelect')?.value || null;
+
             if (activeTab === 'heatmap') {
                 loadMapHeatmap(data);
             } else if (activeTab === 'builds') {
                 loadBuildOrdersView(data);
             } else if (activeTab === 'unit-stats') {
-                loadUnitStatsView(data);
+                if (compareSlug) {
+                    document.getElementById('unitStatsSingleLayout').style.display = 'none';
+                    document.getElementById('unitStatsComparisonLayout').style.display = 'grid';
+                    
+                    document.getElementById('unitStatsLabelA').textContent = data.name;
+                    document.getElementById('unitStatsLabelB').textContent = mapData[compareSlug].name;
+                    
+                    loadUnitStatsView(data, 'unitStatsGridA', 'unitStatsSummaryA');
+                    loadUnitStatsView(mapData[compareSlug], 'unitStatsGridB', 'unitStatsSummaryB');
+                } else {
+                    document.getElementById('unitStatsSingleLayout').style.display = 'block';
+                    document.getElementById('unitStatsComparisonLayout').style.display = 'none';
+                    
+                    loadUnitStatsView(data, 'unitStatsGrid', 'unitStatsSummary');
+                }
             }
         }
 
@@ -1475,9 +1734,11 @@ def generate_html_dashboard(map_data: dict, output_path: str):
         }
 
         // ==================== UNIT STATISTICS VIEW ====================
-        function loadUnitStatsView(data) {
-            const grid = document.getElementById('unitStatsGrid');
+        function loadUnitStatsView(data, gridId = 'unitStatsGrid', summaryDivId = 'unitStatsSummary') {
+            const grid = document.getElementById(gridId);
+            const summaryDiv = document.getElementById(summaryDivId);
             grid.innerHTML = '';
+            if (summaryDiv) summaryDiv.innerHTML = '';
             
             const stats = data.stats;
             if (!stats || !stats.games_count) {
@@ -1497,6 +1758,78 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             if (allUnits.size === 0) {
                 grid.innerHTML = '<div style="padding: 20px; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No buildings or units recorded for the winner.</div>';
                 return;
+            }
+            
+            // Calculate total built units to show percentages
+            let totalBuiltUnits = 0;
+            if (stats.avg_built) {
+                Object.values(stats.avg_built).forEach(val => {
+                    totalBuiltUnits += val || 0;
+                });
+            }
+            
+            if (summaryDiv && totalBuiltUnits > 0) {
+                summaryDiv.className = 'stats-summary-card';
+                
+                let html = `
+                    <div class="stats-summary-header">
+                        <div class="stats-summary-title">Winner Total Average Units Built</div>
+                        <div class="stats-summary-val">${totalBuiltUnits.toFixed(1)}</div>
+                    </div>
+                    <div class="proportion-bar-container">
+                        <div class="proportion-bar-outer">
+                `;
+                
+                const sortedBuiltUnits = Object.entries(stats.avg_built || {})
+                    .filter(([_, v]) => v > 0)
+                    .sort((a, b) => b[1] - a[1]);
+                    
+                sortedBuiltUnits.forEach(([unitName, val]) => {
+                    const pct = ((val / totalBuiltUnits) * 100).toFixed(1);
+                    const color = getUnitColor(unitName);
+                    const showLabel = parseFloat(pct) >= 6;
+                    const segmentLabel = showLabel ? `${unitName} (${pct}%)` : '';
+                    
+                    html += `
+                        <div class="proportion-bar-segment" 
+                             style="width: 0%; background-color: ${color};" 
+                             title="${unitName}: ${val} (${pct}%)"
+                             data-width="${pct}%">
+                             ${segmentLabel}
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                    <div class="proportion-legend">
+                `;
+                
+                sortedBuiltUnits.forEach(([unitName, val]) => {
+                    const pct = ((val / totalBuiltUnits) * 100).toFixed(1);
+                    const color = getUnitColor(unitName);
+                    html += `
+                        <div class="proportion-legend-item">
+                            <div class="proportion-legend-dot" style="background-color: ${color}"></div>
+                            <span class="proportion-legend-name">${unitName}</span>
+                            <span class="proportion-legend-val">${val} (${pct}%)</span>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                    </div>
+                `;
+                
+                summaryDiv.innerHTML = html;
+                
+                setTimeout(() => {
+                    const segments = summaryDiv.querySelectorAll('.proportion-bar-segment');
+                    segments.forEach(seg => {
+                        seg.style.width = seg.getAttribute('data-width');
+                    });
+                }, 50);
             }
             
             // Find peak values to scale charts relative to each other (optional, or scale each card to 100% locally)
@@ -1535,7 +1868,14 @@ def generate_html_dashboard(map_data: dict, output_path: str):
                     
                     const labelDiv = document.createElement('div');
                     labelDiv.className = 'unit-metric-label';
-                    labelDiv.innerHTML = `<span>${m.label}</span><span class="unit-metric-val">${val}</span>`;
+                    
+                    let displayVal = val;
+                    if (m.key === 'avg_built' && totalBuiltUnits > 0) {
+                        const pct = ((val / totalBuiltUnits) * 100).toFixed(1);
+                        displayVal = `${val} (${pct}%)`;
+                    }
+                    
+                    labelDiv.innerHTML = `<span>${m.label}</span><span class="unit-metric-val">${displayVal}</span>`;
                     
                     const barOuter = document.createElement('div');
                     barOuter.className = 'metric-bar-outer';
