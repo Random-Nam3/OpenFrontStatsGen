@@ -800,6 +800,131 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             font-family: 'Outfit', sans-serif;
         }
 
+        /* Deviation Analysis Styles */
+        .deviation-card {
+            background: linear-gradient(135deg, rgba(19, 23, 34, 0.95) 0%, rgba(24, 30, 43, 0.95) 100%);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .deviation-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+        }
+
+        .deviation-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .deviation-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .deviation-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .deviation-row {
+            display: grid;
+            grid-template-columns: 100px 1fr 140px;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .deviation-unit-name {
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: capitalize;
+            font-size: 0.85rem;
+        }
+
+        .deviation-track {
+            height: 14px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 7px;
+            position: relative;
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            overflow: hidden;
+        }
+
+        .deviation-center-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 1px;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.2);
+            z-index: 2;
+        }
+
+        .deviation-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.05);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .deviation-bar {
+            height: 100%;
+            position: absolute;
+            top: 0;
+            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), left 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            border-radius: 4px;
+        }
+
+        .deviation-bar.positive {
+            left: 50%;
+            background: linear-gradient(90deg, #10b981, #34d399);
+        }
+
+        .deviation-bar.negative {
+            background: linear-gradient(90deg, #ef4444, #f87171);
+        }
+
+        .deviation-vals {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            font-size: 0.8rem;
+            gap: 2px;
+        }
+
+        .deviation-val-comparison {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .deviation-pct {
+            font-weight: 700;
+        }
+
+        .deviation-pct.positive {
+            color: #34d399;
+        }
+
+        .deviation-pct.negative {
+            color: #f87171;
+        }
+
+        .deviation-pct.neutral {
+            color: var(--text-secondary);
+        }
+
         /* Unit Stats View */
         .stats-grid {
             display: grid;
@@ -993,18 +1118,12 @@ def generate_html_dashboard(map_data: dict, output_path: str):
                 <div class="compare-selector-container">
                     <span class="compare-label">Compare Against:</span>
                     <select id="compareMapSelect" class="compare-select" onchange="selectCompareMap(this.value)">
-                        <option value="">(None)</option>
+                        <option value="">(None - Global Average)</option>
                     </select>
                 </div>
             </div>
             
-            <!-- Single View Layout -->
-            <div id="unitStatsSingleLayout">
-                <div id="unitStatsSummary"></div>
-            </div>
-            
-            <!-- Comparison View Layout -->
-            <div class="comparison-unit-stats-grid" id="unitStatsComparisonLayout" style="display: none;">
+            <div class="comparison-unit-stats-grid" id="unitStatsLayout" style="display: grid;">
                 <div class="comparison-column">
                     <h2 class="comparison-map-heading" id="unitStatsLabelA">Map A</h2>
                     <div id="unitStatsSummaryA"></div>
@@ -1014,6 +1133,9 @@ def generate_html_dashboard(map_data: dict, output_path: str):
                     <div id="unitStatsSummaryB"></div>
                 </div>
             </div>
+            
+            <!-- Deviation Analysis Section -->
+            <div id="unitStatsDeviationContainer" style="margin-top: 30px;"></div>
         </div>
 
         <!-- General stats panel at bottom -->
@@ -1040,7 +1162,40 @@ def generate_html_dashboard(map_data: dict, output_path: str):
         let activeSlug = null;
         let activeTab = 'heatmap';
 
-
+        function getGlobalStats() {
+            let totalGames = 0;
+            const globalAvgBuilt = {};
+            
+            Object.values(mapData).forEach(data => {
+                const stats = data.stats;
+                if (!stats || !stats.games_count) return;
+                
+                const count = stats.games_count;
+                totalGames += count;
+                
+                if (stats.avg_built) {
+                    Object.entries(stats.avg_built).forEach(([unitName, avg]) => {
+                        const totalUnitBuilt = (avg || 0) * count;
+                        globalAvgBuilt[unitName] = (globalAvgBuilt[unitName] || 0) + totalUnitBuilt;
+                    });
+                }
+            });
+            
+            const avgBuilt = {};
+            if (totalGames > 0) {
+                Object.entries(globalAvgBuilt).forEach(([unitName, total]) => {
+                    avgBuilt[unitName] = Math.round((total / totalGames) * 10) / 10;
+                });
+            }
+            
+            return {
+                name: "Global Average (All Maps)",
+                stats: {
+                    games_count: totalGames,
+                    avg_built: avgBuilt
+                }
+            };
+        }
 
         // Set up tabs switching
         function switchTab(tabName) {
@@ -1073,7 +1228,7 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             // Populate comparison selector select box
             const compareSelect = document.getElementById('compareMapSelect');
             if (compareSelect) {
-                compareSelect.innerHTML = '<option value="">(None)</option>';
+                compareSelect.innerHTML = '<option value="">(None - Global Average)</option>';
                 // Sort slugs by map name alphabetically
                 const sortedSlugs = slugs.slice().sort((a, b) => mapData[a].name.localeCompare(mapData[b].name));
                 sortedSlugs.forEach(slug => {
@@ -1212,22 +1367,151 @@ def generate_html_dashboard(map_data: dict, output_path: str):
             } else if (activeTab === 'builds') {
                 loadBuildOrdersView(data);
             } else if (activeTab === 'unit-stats') {
+                document.getElementById('unitStatsLabelA').textContent = data.name;
+                loadUnitStatsView(data, 'unitStatsSummaryA');
+                
                 if (compareSlug) {
-                    document.getElementById('unitStatsSingleLayout').style.display = 'none';
-                    document.getElementById('unitStatsComparisonLayout').style.display = 'grid';
-                    
-                    document.getElementById('unitStatsLabelA').textContent = data.name;
                     document.getElementById('unitStatsLabelB').textContent = mapData[compareSlug].name;
-                    
-                    loadUnitStatsView(data, 'unitStatsSummaryA');
                     loadUnitStatsView(mapData[compareSlug], 'unitStatsSummaryB');
+                    updateDeviationView(data, mapData[compareSlug]);
                 } else {
-                    document.getElementById('unitStatsSingleLayout').style.display = 'block';
-                    document.getElementById('unitStatsComparisonLayout').style.display = 'none';
-                    
-                    loadUnitStatsView(data, 'unitStatsSummary');
+                    const globalStats = getGlobalStats();
+                    document.getElementById('unitStatsLabelB').textContent = globalStats.name;
+                    loadUnitStatsView(globalStats, 'unitStatsSummaryB');
+                    updateDeviationView(data, globalStats);
                 }
             }
+        }
+
+        function updateDeviationView(dataA, dataB) {
+            const container = document.getElementById('unitStatsDeviationContainer');
+            if (!container) return;
+            container.innerHTML = '';
+            
+            const statsA = dataA.stats;
+            const statsB = dataB.stats;
+            if (!statsA || !statsB) return;
+            
+            const builtA = statsA.avg_built || {};
+            const builtB = statsB.avg_built || {};
+            
+            // Get all unit types present in either map
+            const allUnits = new Set([
+                ...Object.keys(builtA),
+                ...Object.keys(builtB)
+            ]);
+            
+            if (allUnits.size === 0) return;
+            
+            // Calculate total units built for proportion calculation
+            let totalA = 0;
+            Object.values(builtA).forEach(val => { totalA += (val || 0); });
+            let totalB = 0;
+            Object.values(builtB).forEach(val => { totalB += (val || 0); });
+            
+            const card = document.createElement('div');
+            card.className = 'deviation-card';
+            
+            let html = `
+                <div class="deviation-header">
+                    <div class="deviation-title">Build Deviation Analysis</div>
+                    <div class="deviation-subtitle">Comparing unit proportions on ${dataA.name || 'Map A'} against ${dataB.name || 'Map B'}</div>
+                </div>
+                <div class="deviation-list">
+                    <!-- Scale Header Row -->
+                    <div class="deviation-row" style="margin-bottom: 8px; align-items: flex-end;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 700; text-transform: uppercase;">Unit</div>
+                        <div style="position: relative; height: 16px; font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">
+                            <span style="position: absolute; left: 10%; transform: translateX(-50%);">-40%</span>
+                            <span style="position: absolute; left: 30%; transform: translateX(-50%);">-20%</span>
+                            <span style="position: absolute; left: 50%; transform: translateX(-50%); color: var(--text-primary); font-weight: 700;">0%</span>
+                            <span style="position: absolute; left: 70%; transform: translateX(-50%);">+20%</span>
+                            <span style="position: absolute; left: 90%; transform: translateX(-50%);">+40%</span>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 700; text-transform: uppercase; text-align: right; padding-right: 15px;">Difference</div>
+                    </div>
+            `;
+            
+            Array.from(allUnits).sort().forEach(unit => {
+                const valA = builtA[unit] || 0;
+                const valB = builtB[unit] || 0;
+                
+                if (valA === 0 && valB === 0) return;
+                
+                const pctA = totalA > 0 ? (valA / totalA) * 100 : 0;
+                const pctB = totalB > 0 ? (valB / totalB) * 100 : 0;
+                
+                const pct = pctA - pctB;
+                let pctStr = '';
+                let pctClass = '';
+                
+                if (pct > 0) {
+                    pctStr = `+${pct.toFixed(1)}%`;
+                    pctClass = 'positive';
+                } else if (pct < 0) {
+                    pctStr = `${pct.toFixed(1)}%`;
+                    pctClass = 'negative';
+                } else {
+                    pctStr = '0.0%';
+                    pctClass = 'neutral';
+                }
+                
+                const absPct = Math.min(50, Math.abs(pct));
+                const barWidth = absPct;
+                
+                let barStyle = 'left: 50%; width: 0%;';
+                let barAttrs = '';
+                let barClass = '';
+                if (pct > 0) {
+                    barAttrs = `data-target-width="${barWidth}%"`;
+                    barClass = 'positive';
+                } else if (pct < 0) {
+                    barAttrs = `data-target-left="${50 - barWidth}%" data-target-width="${barWidth}%"`;
+                    barClass = 'negative';
+                } else {
+                    barAttrs = `data-target-width="0%"`;
+                    barClass = 'neutral';
+                }
+                
+                html += `
+                    <div class="deviation-row">
+                        <div class="deviation-unit-name">${unit}</div>
+                        <div class="deviation-track">
+                            <div class="deviation-marker" style="left: 10%;"></div>
+                            <div class="deviation-marker" style="left: 20%;"></div>
+                            <div class="deviation-marker" style="left: 30%;"></div>
+                            <div class="deviation-marker" style="left: 40%;"></div>
+                            <div class="deviation-center-line"></div>
+                            <div class="deviation-marker" style="left: 60%;"></div>
+                            <div class="deviation-marker" style="left: 70%;"></div>
+                            <div class="deviation-marker" style="left: 80%;"></div>
+                            <div class="deviation-marker" style="left: 90%;"></div>
+                            <div class="deviation-bar ${barClass}" style="${barStyle}" ${barAttrs}></div>
+                        </div>
+                        <div class="deviation-vals" title="${valA.toFixed(1)} vs ${valB.toFixed(1)} average units built">
+                            <span class="deviation-pct ${pctClass}">${pctStr}</span>
+                            <span class="deviation-val-comparison">${pctA.toFixed(1)}% vs ${pctB.toFixed(1)}%</span>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+            card.innerHTML = html;
+            container.appendChild(card);
+            
+            // Animate deviation bars growth
+            setTimeout(() => {
+                const bars = container.querySelectorAll('.deviation-bar');
+                bars.forEach(bar => {
+                    const targetWidth = bar.getAttribute('data-target-width');
+                    const targetLeft = bar.getAttribute('data-target-left');
+                    if (targetLeft) {
+                        bar.style.left = targetLeft;
+                    }
+                    bar.style.width = targetWidth;
+                });
+            }, 50);
         }
 
         // ==================== HEATMAP RENDER ====================
